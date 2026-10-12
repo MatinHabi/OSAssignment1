@@ -65,9 +65,13 @@ void my_mergesort(int left, int right) {
 }
 
 /* this function will be called by the testing program. */
+/* sorts A[left..right]. splits into two halves until cutoff level and then merges.*/
+/* doesn't free its own arg but the caller does. */
 void* parallel_mergesort(void* arg) {
   struct argument *my_arg = (struct argument *)arg;
-  int left, right, level;
+  struct argument *left_arg;
+  struct argument *right_arg;
+  int left, right, level, mid;
 
   if (my_arg == NULL){
     return NULL;
@@ -81,7 +85,23 @@ void* parallel_mergesort(void* arg) {
     my_mergesort(left, right);
     return NULL;
   }
-  return NULL;
+
+
+mid = left + (right-left)/2;
+
+/* separate args so the halves never have to share one. */
+left_arg = buildArgs(left, mid, level+1);
+right_arg = buildArgs(mid+1, right, level+1);
+
+/* run these in threads */
+parallel_mergesort(left_arg);
+parallel_mergesort(right_arg);
+
+free(left_arg);
+free(right_arg);
+
+merge(left, mid, mid+1, right);
+return NULL;
 }
 
 /* we build the argument for the parallel_mergesort function. */
