@@ -71,7 +71,13 @@ void* parallel_mergesort(void* arg) {
   struct argument *my_arg = (struct argument *)arg;
   struct argument *left_arg;
   struct argument *right_arg;
-  int left, right, level, mid;
+
+  pthread_t left_thread;
+  pthread_t right_thread;
+
+  int left_started = FALSE;
+  int right_started = FALSE ;
+  int left, right, level, mid, rc;
 
   if (my_arg == NULL){
     return NULL;
@@ -89,13 +95,42 @@ void* parallel_mergesort(void* arg) {
 
 mid = left + (right-left)/2;
 
-/* separate args so the halves never have to share one. */
+/* separate args so the halves never have to share one */
 left_arg = buildArgs(left, mid, level+1);
 right_arg = buildArgs(mid+1, right, level+1);
 
-/* run these in threads */
-parallel_mergesort(left_arg);
-parallel_mergesort(right_arg);
+ if (left_arg != NULL &&
+      pthread_create(&left_thread, NULL, parallel_mergesort, left_arg) == 0) {
+    left_started = TRUE;
+  }
+  if (right_arg != NULL &&
+      pthread_create(&right_thread, NULL, parallel_mergesort, right_arg) == 0) {
+    right_started = TRUE;
+  }
+
+  /* if no thread for a half, sort it ourselves */
+  if (!left_started) {
+    my_mergesort(left, mid);
+  }
+  if (!right_started) {
+    my_mergesort(mid + 1, right);
+  }
+
+  /* both halves must finish before merge */
+  if (left_started) {
+    rc = pthread_join(left_thread, NULL);
+    if (rc != 0) {
+      fprintf(stderr, "pthread_join failed: %s\n", strerror(rc));
+      exit(EXIT_FAILURE);
+    }
+  }
+  if (right_started) {
+    rc = pthread_join(right_thread, NULL);
+    if (rc != 0) {
+      fprintf(stderr, "pthread_join failed: %s\n", strerror(rc));
+      exit(EXIT_FAILURE);
+    }
+  }
 
 free(left_arg);
 free(right_arg);
